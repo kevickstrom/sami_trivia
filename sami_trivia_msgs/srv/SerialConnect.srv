@@ -1,0 +1,6 @@
+# inputs
+string port
+int32 baudrate
+---
+# outputs
+bool connected

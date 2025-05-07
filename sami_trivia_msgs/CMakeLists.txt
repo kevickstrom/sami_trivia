@@ -26,7 +26,8 @@ endif()
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/question.msg"
-  "srv/newQuestion.srv"
+  "msg/Question.msg"
+  "srv/NewQuestion.srv"
+  "srv/SerialConnect.srv
 )
 ament_package()
