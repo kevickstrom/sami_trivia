@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'trivia = sami_trivia.triviaGame:createGame',
-            'sami_control = sami_trivia.samiControl:createController'
+            'sami_control = sami_trivia.samiControl:createController',
+            'q_test = sami_trivia.questiontesting:main'
         ],
     },
 )

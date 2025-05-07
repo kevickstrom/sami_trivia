@@ -39,11 +39,10 @@ class TriviaGame(Node):
             if getinput == " ":
                 self.waiting = False
                 self.get_logger().info("Starting next question.")
-        while not self.started:
-            getinput = input("Press SPACE to start...")
-            if getinput == " ":
-                self.started = True
-                self.get_logger().info("Starting game...")
+        if not self.started:
+            input("Press any button to start...")
+            self.started = True
+            self.get_logger().info("Starting game...")
         
 
         self.getQuestion()
@@ -53,6 +52,9 @@ class TriviaGame(Node):
         """
         Service request for new question
         """
+        if not self.questionClient.wait_for_service(timeout_sec=1):
+            self.get_logger().warn("Question service not active!")
+            return
         request = NewQuestion.Request()
         request.request = True
         self.get_logger().info('requesting new question...')
@@ -68,6 +70,9 @@ class TriviaGame(Node):
         """
         Action request to move sami and play mp3's
         """
+        if not self.moveClient.wait_for_server(timeout_sec=1):
+            self.get_logger().warn("Move server not active!")
+            return
         goal = MoveSami.Goal()
         goal.json_file = json_file
         self.moveClient.wait_for_server()
