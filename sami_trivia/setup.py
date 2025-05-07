@@ -4,7 +4,7 @@ package_name = 'sami_trivia'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='0.0.1',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -13,13 +13,15 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='user',
-    maintainer_email='ore.sailor@gmail.com',
-    description='TODO: Package description',
+    maintainer='kevickstrom',
+    maintainer_email='vickskyl@oregonstate.edu',
+    description='ROB421 Trivia Interaction Pkg',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'trivia = sami_trivia.triviaGame:createGame',
+            'sami_control = sami_trivia.samiControl:createController'
         ],
     },
 )
