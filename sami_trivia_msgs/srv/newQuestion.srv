@@ -2,8 +2,4 @@
 bool request
 ---
 # outputs
-string question
-int numAns
-string[] ans
-string ansMP3
-string questionMP3
+question newQ
