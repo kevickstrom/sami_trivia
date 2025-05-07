@@ -28,6 +28,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Question.msg"
   "srv/NewQuestion.srv"
-  "srv/SerialConnect.srv
+  "srv/SerialConnect.srv"
+  "action/MoveSami.action"
 )
 ament_package()

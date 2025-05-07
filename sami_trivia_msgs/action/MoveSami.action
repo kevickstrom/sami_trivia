@@ -1,5 +1,5 @@
 # goal
-string jsonFile
+string json_file
 ---
 # result
 bool completed

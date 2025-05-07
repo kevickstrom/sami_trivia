@@ -1,5 +1,5 @@
 string q
-int numAns
+int64 num_ans
 string[] ans
-string ansMP3
-string questionMP3
+string ans_mp3
+string question_mp3

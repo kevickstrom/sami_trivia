@@ -2,4 +2,4 @@
 bool request
 ---
 # outputs
-question newQ
+Question new_q

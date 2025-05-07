@@ -3,6 +3,7 @@
 import serial
 import json
 import time
+import threading
 
 import rclpy
 from rclpy.node import Node
@@ -29,7 +30,7 @@ class SamiControl(Node):
                 audio_file_encoding='.mp3'):
         super().__init__('sami_control')
         self.connected = False
-        self.moving = False         # TODO: this needs to be mutexed
+        self.moving = threading.Lock()  # mutex to lock sending move cmds
         self.ser = None
         self.joint_map = self.load_joint_config(joint_config_file)
         # self.emote_mapping
@@ -101,44 +102,45 @@ class SamiControl(Node):
         Reads json from goal msg and sends over serial. If serial not connect, just logs.
         Cancelling is implemented.
         """
-        # TODO: check the self.moving mutex before reading a json and set accordingly
-        self.get_logger().info('the robot is sentient...')
-        jsonFile = goal.request.jsonFile
-        result = MoveSami.Result()
-        # here is where you move the robot with jsons and stuff
-        # if goal.is_cancel_requested:
-        with open(filename, 'r') as file:
-            data = json.load(file)
-        self.get_logger().info(f"Serial connection: {self.connected}. Sending keyframes...")
-        for keyframe in data["Keyframes"]:
-            # Process Joint Commands if enabled.
-            if keyframe.get("HasJoints") == "True":
-                joint_ids = []
-                joint_angles = []
-                joint_time = keyframe.get("JointMoveTime", 1)
-                for joint in keyframe["JointAngles"]:
-                    joint_ids.append(self.get_joint_id(joint["Joint"]))
-                    joint_angles.append(joint["Angle"])
+        with self.moving:
+            self.get_logger().info('the robot is sentient...')
+            json_file = goal.request.json_file
+            result = MoveSami.Result()
+            # here is where you move the robot with jsons and stuff
+            with open(filename, 'r') as file:
+                data = json.load(file)
+            self.get_logger().info(f"Serial connection: {self.connected}. Sending keyframes...")
+            for keyframe in data["Keyframes"]:
+                # Process Joint Commands if enabled.
+                if keyframe.get("HasJoints") == "True":
+                    joint_ids = []
+                    joint_angles = []
+                    joint_time = keyframe.get("JointMoveTime", 1)
+                    for joint in keyframe["JointAngles"]:
+                        joint_ids.append(self.get_joint_id(joint["Joint"]))
+                        joint_angles.append(joint["Angle"])
 
-                # check for cancelling
-                if goal.is_cancel_requested:
-                    goal.canceled()
-                    self.get_logger().info("Cancelling move.")
-                    # TODO reset moving mutex
-                    result.completed = False
-                    return result
+                    # check for cancelling
+                    if goal.is_cancel_requested:
+                        goal.canceled()
+                        self.get_logger().info("Cancelling move.")
+                        # TODO reset moving mutex
+                        result.completed = False
+                        return result
 
-                self.send_joint_command(joint_ids, joint_angles, joint_time)
-            time.sleep(keyframe.get("WaitTime", 1000) / 1000)
+                    self.send_joint_command(joint_ids, joint_angles, joint_time)
+                time.sleep(keyframe.get("WaitTime", 1000) / 1000)
 
-        self.get_logger().info("Finished json")
-        # TODO: reset moving mutex
+            self.get_logger().info("Finished json")
 
     def cancel_move_cb(self, goal_handle):
         self.get_logger().info('Canceling move')
         return CancelResponse.ACCEPT
 
 def createController(args=None):
+    """
+    Entry point
+    """
     rclpy.init(args=args)
     sami = SamiControl()
     rclpy.spin(sami)
