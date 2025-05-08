@@ -151,6 +151,7 @@ class SamiControl(Node):
             except Exception as e:
                 self.log(f"Error with file: {e}")
                 result.completed = False
+                goal.abort()
                 return result
 
             self.log(f"Serial connection: {self.connected}. Sending keyframes...")
@@ -171,6 +172,7 @@ class SamiControl(Node):
                         #self.get_logger().info("Cancelling move.")
                         self.log("Cancelling move.")
                         result.completed = False
+                        goal.abort()
                         return result
 
                     self.send_joint_command(joint_ids, joint_angles, joint_time)
@@ -178,6 +180,9 @@ class SamiControl(Node):
 
             #self.get_logger().info("Finished json")
             self.log("Finished json")
+            result.completed = True
+            goal.succeed()
+            return result
 
     def cancel_move_cb(self, goal_handle):
         #self.get_logger().info('Canceling move')

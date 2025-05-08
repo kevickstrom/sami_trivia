@@ -180,6 +180,8 @@ class TriviaGame(Node):
         Available commands
             move <filename.json>        this calls the action client with the filename to move sami
         """
+        if user_input is None:
+            self.log("[USER INPUT] : [NONE]")
         tokens = user_input.strip().split()
         if not tokens:
             self.log("[USER INPUT] : [NONE]")
