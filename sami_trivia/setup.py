@@ -1,5 +1,6 @@
 import os
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = 'sami_trivia'
 os.environ["PYTHON_EXECUTABLE"] = "/home/user/Desktop/trivia_ws/.venv/bin/python"
@@ -11,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'assets'), glob('assets/**/*', recursive=True)),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -13,10 +13,12 @@ import serial
 import json
 import time
 import threading
+import os
 
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, CancelResponse
+from ament_index_python.packages import get_package_share_directory
 
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -24,6 +26,7 @@ from rclpy.executors import MultiThreadedExecutor
 from sami_trivia_msgs.msg import Question, GameLog
 from sami_trivia_msgs.srv import NewQuestion, SerialConnect
 from sami_trivia_msgs.action import MoveSami
+
 
 class SamiControl(Node):
     """
@@ -39,6 +42,9 @@ class SamiControl(Node):
                 audio_file_encoding='.mp3'):
         super().__init__('sami_control')
         self.connected = False
+        self.logging = True     # TODO : param
+        if self.logging:
+            self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
         self.moving = threading.Lock()  # mutex to lock sending move cmds
         self.ser = None
         self.joint_map = self.load_joint_config(joint_config_file)
@@ -47,22 +53,27 @@ class SamiControl(Node):
         self.moveServer = ActionServer(self, MoveSami, 'move_sami', self.move_cb,
                     callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_move_cb)
 
-        self.logging = True     # TODO : param
-        if self.logging:
-            self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
     
     def load_joint_config(self, joint_config_file):
         """
         Called upon init to create joint map of [JointName: JointID]
         """
-        # open, read json
-        with open(joint_config_file, 'r') as file:
-            config = json.load(file)
-        joint_map = {}
-        # create map
-        for joint in config["JointConfig"]:
-            joint_map[joint["JointName"]] = joint["JointID"]
-        return joint_map
+        try:
+            pkg_path = get_package_share_directory('sami_trivia')
+            file_path = os.path.join(pkg_path, 'assets/', joint_config_file)
+            if not os.path.exists(file_path):
+                self.log(f"File not found: {file_path}")
+            # read json file
+            with open(file_path, 'r') as file:
+                config = json.load(file)
+            joint_map = {}
+            # create map
+            for joint in config["JointConfig"]:
+                joint_map[joint["JointName"]] = joint["JointID"]
+            return joint_map
+        except Exception as e:
+            self.log(f"Error with file: {e}")
+
 
     def connect_serial(self, request, response):
         """
@@ -126,8 +137,22 @@ class SamiControl(Node):
             json_file = goal.request.json_file
             result = MoveSami.Result()
             # here is where you move the robot with jsons and stuff
-            with open(filename, 'r') as file:
-                data = json.load(file)
+            # first get the file
+            try:
+                pkg_path = get_package_share_directory('sami_trivia')
+                file_path = os.path.join(pkg_path, 'assets/', json_file)
+                if not os.path.exists(file_path):
+                    self.log(f"File not found: {file_path}")
+                    result.completed = False
+                    return result
+                # read json file
+                with open(file_path, 'r') as file:
+                    data = json.load(file)
+            except Exception as e:
+                self.log(f"Error with file: {e}")
+                result.completed = False
+                return result
+
             self.log(f"Serial connection: {self.connected}. Sending keyframes...")
             #self.get_logger().info(f"Serial connection: {self.connected}. Sending keyframes...")
             for keyframe in data["Keyframes"]:

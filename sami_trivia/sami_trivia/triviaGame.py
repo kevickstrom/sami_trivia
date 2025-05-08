@@ -5,7 +5,7 @@
 # Kyle Vickstrom
 #
 # This is the main controller of SAMI's trivia interaction.
-# Basically a sequencer for when to call each service / action of the other nodes.
+# Uses curses to draw a custom shell like interface
 
 import rclpy
 from rclpy.node import Node
@@ -39,6 +39,8 @@ class TriviaGame(Node):
         """
         Wait for user input to begin asking questions
         self.waiting is true between asking for questions
+        This is the main game loop
+            though other functions can take control with their own loop, like the user cmd input
         """
         curses.cbreak()
         curses.start_color()
@@ -79,10 +81,11 @@ class TriviaGame(Node):
                     pass # connect to arduino
                 elif key == ord('i'):
                     # input mode
-                    self.log("Entering Input mode... ESC to cancel")
+                    self.log("Entering Input mode")
                     self.inputMode = True
-                    self.drawInputMode(stdscr, height, width, usable_height)
+                    user_input = self.drawInputMode(stdscr, height, width, usable_height)
                     self.inputMode = False
+                    self.handleUserCMD(user_input)
 
                 elif key == ord('q'):
                     self.log("Exiting...")
@@ -116,33 +119,37 @@ class TriviaGame(Node):
             stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(1))
         stdscr.addstr(height-2,37, "[ENTER] New Question")
         if not self.inputMode:
-            stdscr.addstr(height-2,58, "[I] Input Mode", curses.color_pair(2))
+            stdscr.addstr(height-2,58, "[I] Input Mode")
         else:
             stdscr.addstr(height-2,58, "[I] Input Mode", curses.color_pair(1))
         
 
     def drawInputMode(self, stdscr, height, width, usable_height):
         """
-        Handles user cmd input mode. kind of like mini shell
+        Handles user cmd input mode. 
+        reuturns the input for another function to handle, kind of like mini shell
         """
-        # redraw screen for green keybind and update latest log msg
-        self.drawScreen(stdscr, height, width, usable_height)
-        curses.echo()
-        stdscr.nodelay(False) # enter blocking mode
         input_y = height-4
         input_x = 6
         stdscr.addstr(input_y, 0, "CMD >")
-        stdscr.clrtoeol()
-        stdscr.move(input_y, input_x)
-        stdscr.refresh()
-
+        stdscr.addstr(input_y - 1, 0, "INPUT MODE: ESC TO LEAVE", curses.color_pair(1))
+        #curses.echo()
+        #stdscr.nodelay(False) # enter blocking mode
         user_input = ""
-        while True:
+        #stdscr.move(input_y, input_x)
+        while rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.1)
+            self.drawScreen(stdscr, height, width, usable_height)
+            stdscr.move(input_y, input_x)
+            stdscr.clrtoeol()
+            stdscr.addstr(input_y, input_x, user_input)
+            #stdscr.move(input_y, input_x+len(user_input))
+            stdscr.refresh()
             ch = stdscr.getch()
 
             # ESC to cancel
             if ch == 27:
-                self.log("Leaving Input mode...")
+                self.log("Leaving Input mode")
                 user_input = None
                 break
             # Enter cmd
@@ -152,17 +159,47 @@ class TriviaGame(Node):
             elif ch in (curses.KEY_BACKSPACE, 127):
                 if len(user_input) > 0:
                     user_input = user_input[:-1]
-                    stdscr.delch(input_y, input_x+len(user_input))
-                    stdscr.move(input_y, input_x+len(user_input))
+                    #stdscr.delch(input_y, input_x+len(user_input))
+                    #stdscr.move(input_y, input_x+len(user_input))
             else:
                 # add to user input string
                 try:
                     char = chr(ch)
                     user_input += char
+                    #stdscr.addstr(input_y, input_x+len(user_input), user_input)
+                    #stdscr.move(input_y, input_x+len(user_input))
                 except ValueError:
                     continue # ignore weird chars that dont print
         if user_input:
             self.log(f"[USER INPUT] {user_input}")
+            return user_input
+
+    def handleUserCMD(self, user_input):
+        """
+        Logic to handle input commands
+        Available commands
+            move <filename.json>        this calls the action client with the filename to move sami
+        """
+        tokens = user_input.strip().split()
+        if not tokens:
+            self.log("[USER INPUT] : [NONE]")
+            return
+
+        cmd = tokens[0]
+        args = tokens[1:]
+
+        self.log(f"[CMD]: {cmd}  [ARGS]: {args}")
+
+        if cmd == "move":
+            if len(args) != 1:
+                self.log("[USER INPUT] Usage: move <filename.json>")
+                return
+            filename = args[0]
+            self.moveSami(filename)
+            return
+        else:
+            self.log("[USER INPUT] theres not anything implemented here yet")
+            return
 
 
     def getQuestion(self):
@@ -170,7 +207,8 @@ class TriviaGame(Node):
         Service request for new question
         """
         if not self.questionClient.wait_for_service(timeout_sec=1):
-            self.get_logger().warn("Question service not active!")
+            self.log("Question service not active!")
+            #self.get_logger().warn("Question service not active!")
             return
         request = NewQuestion.Request()
         request.request = True
@@ -194,8 +232,10 @@ class TriviaGame(Node):
         """
         Action request to move sami and play mp3's
         """
+        self.log("Sami move requested")
         if not self.moveClient.wait_for_server(timeout_sec=1):
-            self.get_logger().warn("Move server not active!")
+            self.log("Move server not active!")
+            #self.get_logger().warn("Move server not active!")
             return
         goal = MoveSami.Goal()
         goal.json_file = json_file
