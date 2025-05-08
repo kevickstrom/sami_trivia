@@ -25,6 +25,7 @@ class TriviaGame(Node):
         #self.question = None
         self.started = False
         self.waiting = True
+        self.inputMode = False
         self.gameLog = []
         self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
         self.subLog = self.create_subscription(GameLog, 'game_log', self.logsubscriber, 10)
@@ -55,31 +56,14 @@ class TriviaGame(Node):
             # write to terminal screen
             stdscr.clear()
             height, width = stdscr.getmaxyx()
-            usable_height = height - 4      # 1 title, 1 divider, 2 keybinds
-            stdscr.addstr(0, 0, "Log:")
+            usable_height = height - 4 - 4      # 1 title, 1 divider, 2 keybinds, 4 user cmd input
 
-            # draw log
-            logs_to_show = self.gameLog[-usable_height:] if usable_height > 0 else []
-            for i, msg in enumerate(logs_to_show):
-                stamp = Time.from_msg(msg.stamp).to_msg()
-                time_str = f"{stamp.sec % 86400//3600:02}:{stamp.sec%3600//60:02}:{stamp.sec%60:02}"
-                line = f"[{time_str}][{msg.node_name}] {msg.content}"
-                stdscr.addstr(i+1, 2, f"> {line[:width-4]}")
+            self.drawScreen(stdscr, height, width, usable_height)
+            
 
-            stdscr.addstr(height-3, 0, "-"*(width-1))
-            #stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT [C] Connect SAMI [ENTER] New Question")
-            stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT ")
-            if not self.arduinoConnected:
-                stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(2))
-            else:
-                stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(1))
-            stdscr.addstr(height-2,37, "[ENTER] New Question")
-            #20
-            stdscr.refresh()
-
-
+            # key keybind inputs
             key = stdscr.getch()
-            # in between questions
+           
             if key != -1:
                 if key == 32: # space key
                     if not self.started:
@@ -93,13 +77,92 @@ class TriviaGame(Node):
                         #print(self.question.response.q)
                 elif key == ord('c'):
                     pass # connect to arduino
+                elif key == ord('i'):
+                    # input mode
+                    self.log("Entering Input mode... ESC to cancel")
+                    self.inputMode = True
+                    self.drawInputMode(stdscr, height, width, usable_height)
+                    self.inputMode = False
+
                 elif key == ord('q'):
                     self.log("Exiting...")
                     break
             
+            stdscr.refresh()
 
         # outside loop, quitting
         stdscr.clear()
+    
+    def drawScreen(self, stdscr, height, width, usable_height):
+        """
+        Draws the log and keybinds to curses terminal
+        """
+        stdscr.addstr(0, 0, "Log:")
+        # draw log
+        logs_to_show = self.gameLog[-usable_height:] if usable_height > 0 else []
+        for i, msg in enumerate(logs_to_show):
+            stamp = Time.from_msg(msg.stamp).to_msg()
+            time_str = f"{stamp.sec % 86400//3600:02}:{stamp.sec%3600//60:02}:{stamp.sec%60:02}"
+            line = f"[{time_str}][{msg.node_name}] {msg.content}"
+            stdscr.addstr(i+1, 2, f"> {line[:width-4]}")
+
+        # draw keybinds
+        stdscr.addstr(height-3, 0, "-"*(width-1))
+        #stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT [C] Connect SAMI [ENTER] New Question")
+        stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT ")
+        if not self.arduinoConnected:
+            stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(2))
+        else:
+            stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(1))
+        stdscr.addstr(height-2,37, "[ENTER] New Question")
+        if not self.inputMode:
+            stdscr.addstr(height-2,58, "[I] Input Mode", curses.color_pair(2))
+        else:
+            stdscr.addstr(height-2,58, "[I] Input Mode", curses.color_pair(1))
+        
+
+    def drawInputMode(self, stdscr, height, width, usable_height):
+        """
+        Handles user cmd input mode. kind of like mini shell
+        """
+        # redraw screen for green keybind and update latest log msg
+        self.drawScreen(stdscr, height, width, usable_height)
+        curses.echo()
+        stdscr.nodelay(False) # enter blocking mode
+        input_y = height-4
+        input_x = 6
+        stdscr.addstr(input_y, 0, "CMD >")
+        stdscr.clrtoeol()
+        stdscr.move(input_y, input_x)
+        stdscr.refresh()
+
+        user_input = ""
+        while True:
+            ch = stdscr.getch()
+
+            # ESC to cancel
+            if ch == 27:
+                self.log("Leaving Input mode...")
+                user_input = None
+                break
+            # Enter cmd
+            elif ch in (curses.KEY_ENTER, 10, 13):
+                break
+            # backspace
+            elif ch in (curses.KEY_BACKSPACE, 127):
+                if len(user_input) > 0:
+                    user_input = user_input[:-1]
+                    stdscr.delch(input_y, input_x+len(user_input))
+                    stdscr.move(input_y, input_x+len(user_input))
+            else:
+                # add to user input string
+                try:
+                    char = chr(ch)
+                    user_input += char
+                except ValueError:
+                    continue # ignore weird chars that dont print
+        if user_input:
+            self.log(f"[USER INPUT] {user_input}")
 
 
     def getQuestion(self):
