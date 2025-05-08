@@ -1,7 +1,8 @@
+import os
 from setuptools import find_packages, setup
 
 package_name = 'sami_trivia'
-
+os.environ["PYTHON_EXECUTABLE"] = "/home/user/Desktop/trivia_ws/.venv/bin/python"
 setup(
     name=package_name,
     version='0.0.1',

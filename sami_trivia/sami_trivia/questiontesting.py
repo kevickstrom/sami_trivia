@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# questiontesting.py
+#
+# Kyle Vickstrom
+#
+# This is a server node to test the new question service.
+
+
 import rclpy
 from rclpy.node import Node
 
@@ -18,7 +25,7 @@ class QuestionTester(Node):
     def sendq(self, request, response):
         response.new_q.q = "Are you having fun yet?"
         response.new_q.num_ans = 1
-        response.new_q.ans.append("yes") # or build list then assign
+        response.new_q.ans.append("yes") # or build list then assign like response.new_q.ans = ["yes", "how could you not be having fun?"]
         response.new_q.ans_mp3 = "nope"
         response.new_q.question_mp3 = "nope"
         

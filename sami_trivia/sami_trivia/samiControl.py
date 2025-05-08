@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+# samiControl.py
+#
+# Kyle Vickstrom
+#
+# A rewrite of the jamui's read_json file into a node
+# This has a service call to connect to the arduino via serial
+# This also has an action to send a behavior json over serial (or just log if not connected)
+
+
 import serial
 import json
 import time
@@ -20,7 +29,7 @@ class SamiControl(Node):
     """
         Node to control sending jsons to SAMI's onboard arduino
         A service call will init the serial connection, otherwise commands will just be logged.
-        An action server waits for a json file to be requested.
+        An action server waits for a json file to be requested and uses a mutex to control the serial port.
     """
     def __init__(self,
                 joint_config_file='Joint_config.json',
@@ -124,7 +133,6 @@ class SamiControl(Node):
                     if goal.is_cancel_requested:
                         goal.canceled()
                         self.get_logger().info("Cancelling move.")
-                        # TODO reset moving mutex
                         result.completed = False
                         return result
 

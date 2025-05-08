@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 
+# triviaGame.py
+#
+# Kyle Vickstrom
+#
+# This is the main controller of SAMI's trivia interaction.
+# Basically a sequencer for when to call each service / action of the other nodes.
+
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
+import curses
 
 from sami_trivia_msgs.msg import Question
 from sami_trivia_msgs.srv import NewQuestion, SerialConnect
@@ -13,39 +21,44 @@ class TriviaGame(Node):
         super().__init__('trivia_game')
         # use params here?
         self.numPlayers = None
-        self.question = None
+        #self.question = None
         self.started = False
-        self.waiting = False
+        self.waiting = True
         self.moveClient = ActionClient(self, MoveSami, 'move_sami')
         self.arduinoClient = self.create_client(SerialConnect, 'serial_connect')
         #self.answerClient = ActionClient(self, GetAnswers, 'get_answers')
         self.questionClient = self.create_client(NewQuestion, 'new_question')
 
-        #while not self.questionClient.wait_for_service(timeout_sec=1):
-            #self.get_logger().info('waiting for question service to start')
-
-        # start the game (wait)
-        self.startGame()
-
-    def startGame(self):
+    def startGame(self, stdscr):
         """
         Wait for user input to begin asking questions
         self.waiting is true between asking for questions
         """
-        while self.numPlayers is None:
-            self.numPlayers = input("Enter the number of players: ")
-        while self.waiting:
-            getinput = input("Press SPACE for the next question...")
-            if getinput == " ":
-                self.waiting = False
+        curses.cbreak()
+        stdscr.keypad(True)
+        stdscr.nodelay(True)
+        stdscr.refresh()
+        print("Press SPACE to start...")
+        while rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.1)
+            key = stdscr.getch()
+            # in between questions
+            if key == 32: # space key
+                self.started = True
+                self.get_logger().info("Starting game...")
+            elif key == 10: # enter key
+                if self.waiting:
+                    self.getQuestion()
+                    # get new question
+                    #print(self.question.response.q)
+            elif key == ord('c'):
+                pass # connect to arduino
+            # key == 10 for enter
+            '''
+            elif self.waiting:
+                getinput = input("Press ENTER for the next question...")
                 self.get_logger().info("Starting next question.")
-        if not self.started:
-            input("Press any button to start...")
-            self.started = True
-            self.get_logger().info("Starting game...")
-        
-
-        self.getQuestion()
+            '''
 
 
     def getQuestion(self):
@@ -58,7 +71,13 @@ class TriviaGame(Node):
         request = NewQuestion.Request()
         request.request = True
         self.get_logger().info('requesting new question...')
-        self.question = self.questionClient.call_async(request)
+        self.futureQ = self.questionClient.call_async(request)
+        self.futureQ.add_done_callback(self.gotQuestion)
+        ###
+
+    def gotQuestion(self, future):
+        self.question = future.result()
+        print(self.question.new_q.q)
 
     def getAnswer(self):
         """
@@ -101,7 +120,7 @@ class TriviaGame(Node):
 def createGame(args=None):
     rclpy.init(args=args)
     game = TriviaGame()
-    rclpy.spin(game)
+    curses.wrapper(game.startGame)
     rclpy.shutdown()
 
 if __name__ == "__main__":
