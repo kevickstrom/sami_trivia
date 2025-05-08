@@ -27,6 +27,7 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Question.msg"
+  "msg/GameLog.msg"
   "srv/NewQuestion.srv"
   "srv/SerialConnect.srv"
   "action/MoveSami.action"

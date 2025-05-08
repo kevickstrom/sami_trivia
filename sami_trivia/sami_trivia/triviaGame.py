@@ -10,9 +10,10 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
+from rclpy.time import Time
 import curses
 
-from sami_trivia_msgs.msg import Question
+from sami_trivia_msgs.msg import Question, GameLog
 from sami_trivia_msgs.srv import NewQuestion, SerialConnect
 from sami_trivia_msgs.action import MoveSami
 
@@ -24,8 +25,12 @@ class TriviaGame(Node):
         #self.question = None
         self.started = False
         self.waiting = True
+        self.gameLog = []
+        self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
+        self.subLog = self.create_subscription(GameLog, 'game_log', self.logsubscriber, 10)
         self.moveClient = ActionClient(self, MoveSami, 'move_sami')
         self.arduinoClient = self.create_client(SerialConnect, 'serial_connect')
+        self.arduinoConnected = False
         #self.answerClient = ActionClient(self, GetAnswers, 'get_answers')
         self.questionClient = self.create_client(NewQuestion, 'new_question')
 
@@ -35,30 +40,66 @@ class TriviaGame(Node):
         self.waiting is true between asking for questions
         """
         curses.cbreak()
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_GREEN,-1)
+        curses.init_pair(2, curses.COLOR_RED,-1)
         stdscr.keypad(True)
         stdscr.nodelay(True)
         stdscr.refresh()
-        print("Press SPACE to start...")
+        self.log("Press SPACE to start...")
+        #print("Press SPACE to start...")
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.1)
+
+            # write to terminal screen
+            stdscr.clear()
+            height, width = stdscr.getmaxyx()
+            usable_height = height - 4      # 1 title, 1 divider, 2 keybinds
+            stdscr.addstr(0, 0, "Log:")
+
+            # draw log
+            logs_to_show = self.gameLog[-usable_height:] if usable_height > 0 else []
+            for i, msg in enumerate(logs_to_show):
+                stamp = Time.from_msg(msg.stamp).to_msg()
+                time_str = f"{stamp.sec % 86400//3600:02}:{stamp.sec%3600//60:02}:{stamp.sec%60:02}"
+                line = f"[{time_str}][{msg.node_name}] {msg.content}"
+                stdscr.addstr(i+1, 2, f"> {line[:width-4]}")
+
+            stdscr.addstr(height-3, 0, "-"*(width-1))
+            #stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT [C] Connect SAMI [ENTER] New Question")
+            stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT ")
+            if not self.arduinoConnected:
+                stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(2))
+            else:
+                stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(1))
+            stdscr.addstr(height-2,37, "[ENTER] New Question")
+            #20
+            stdscr.refresh()
+
+
             key = stdscr.getch()
             # in between questions
-            if key == 32: # space key
-                self.started = True
-                self.get_logger().info("Starting game...")
-            elif key == 10: # enter key
-                if self.waiting:
-                    self.getQuestion()
-                    # get new question
-                    #print(self.question.response.q)
-            elif key == ord('c'):
-                pass # connect to arduino
-            # key == 10 for enter
-            '''
-            elif self.waiting:
-                getinput = input("Press ENTER for the next question...")
-                self.get_logger().info("Starting next question.")
-            '''
+            if key != -1:
+                if key == 32: # space key
+                    if not self.started:
+                        self.started = True
+                        self.log("Starting game...")
+                    #self.get_logger().info("Starting game...")
+                elif key == 10: # enter key
+                    if self.waiting:
+                        self.getQuestion()
+                        # get new question
+                        #print(self.question.response.q)
+                elif key == ord('c'):
+                    pass # connect to arduino
+                elif key == ord('q'):
+                    self.log("Exiting...")
+                    break
+            
+
+        # outside loop, quitting
+        stdscr.clear()
 
 
     def getQuestion(self):
@@ -70,7 +111,8 @@ class TriviaGame(Node):
             return
         request = NewQuestion.Request()
         request.request = True
-        self.get_logger().info('requesting new question...')
+        self.log("Requesting new question...")
+        #self.get_logger().info('requesting new question...')
         self.futureQ = self.questionClient.call_async(request)
         self.futureQ.add_done_callback(self.gotQuestion)
         ###
@@ -116,6 +158,23 @@ class TriviaGame(Node):
         """
         pass
 
+    def log(self, msg):
+        """
+        log to topic and to curses terminal window
+        """
+        newmsg = GameLog()
+        newmsg.stamp = self.get_clock().now().to_msg()
+        newmsg.node_name = self.get_name()
+        newmsg.content = msg
+        self.pubLog.publish(newmsg)
+
+    def logsubscriber(self, msg):
+        """
+        Subscriber callback to the game_log. this is what edits the internal log that curses shows
+        """
+        if len(self.gameLog) >=50:
+            self.gameLog.pop(0)
+        self.gameLog.append(msg)
 
 def createGame(args=None):
     rclpy.init(args=args)
