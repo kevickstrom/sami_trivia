@@ -109,11 +109,12 @@ class SamiControl(Node):
         packet = [0x3C, 0x4A, joint_time]
         for jid, angle in zip(joint_ids, joint_angles):
             packet.extend([jid, angle])
+            self.log(f"[JOINT CMD] ID: {jid} ANGLE: {angle}")
         packet.append(0x3E)
         # check if serial port is connected
         if self.connected:
             self.ser.write(bytearray(packet))
-        self.log(f"Joint CMD {bytearray(packet)}")
+        #self.log(f"Joint CMD {bytearray(packet)}")
         #self.get_logger().info(f"Joint CMD {bytearray(packet)}")
 
     def close_connection(self):
@@ -154,8 +155,10 @@ class SamiControl(Node):
                 goal.abort()
                 return result
 
-            self.log(f"Serial connection: {self.connected}. Sending keyframes...")
+            self.log(f"Serial Connection: {self.connected}")
+            self.log(f"Sending keyframes from {json_file}")
             #self.get_logger().info(f"Serial connection: {self.connected}. Sending keyframes...")
+            framecount = 0
             for keyframe in data["Keyframes"]:
                 # Process Joint Commands if enabled.
                 if keyframe.get("HasJoints") == "True":
@@ -175,7 +178,10 @@ class SamiControl(Node):
                         goal.abort()
                         return result
 
+                    # send joint command for each keyframe
+                    self.log(f"[KEYFRAME] {framecount}")
                     self.send_joint_command(joint_ids, joint_angles, joint_time)
+                framecount += 1
                 time.sleep(keyframe.get("WaitTime", 1000) / 1000)
 
             #self.get_logger().info("Finished json")

@@ -170,9 +170,9 @@ class TriviaGame(Node):
                     #stdscr.move(input_y, input_x+len(user_input))
                 except ValueError:
                     continue # ignore weird chars that dont print
-        if user_input:
-            self.log(f"[USER INPUT] {user_input}")
-            return user_input
+        
+        self.log(f"[USER INPUT] {user_input}")
+        return user_input
 
     def handleUserCMD(self, user_input):
         """
@@ -181,7 +181,8 @@ class TriviaGame(Node):
             move <filename.json>        this calls the action client with the filename to move sami
         """
         if user_input is None:
-            self.log("[USER INPUT] : [NONE]")
+            #self.log("[USER INPUT] : [NONE]")
+            return
         tokens = user_input.strip().split()
         if not tokens:
             self.log("[USER INPUT] : [NONE]")
