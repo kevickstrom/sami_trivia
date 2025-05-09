@@ -9,9 +9,18 @@ It features hotkeys to select the most frequently used commands to run the trivi
 The UI shows the running game log. For a node's log message to show up on the main UI:  
 publish type `GameLog` msg to topic `game_log`  
 This will show the timestamp, node of origin, and log message.  
-I like to write a custom `log(self, msg)` where `msg` is a string that us sent to `self.get_logger().info(msg)` and published to the `game_log` topic.  
+I like to write a custom `log(self, msg)` where `msg` is a string that is sent to `self.get_logger().info(msg)` and published to the `game_log` topic.  
+  
+Users can enter `input mode` where they can type commands. 
+  
+### Input Mode Current Commands:
+    move <filename.json>        this calls the action client with the filename to move sami
+    connect <port> <baudrate>   this connects to the arduino. Can have 0, 1, or 2 args given.  
 
-The UI uses the hotkey or corresponding cmd inputs to interact with other nodes to run the trivia game.  
+  
+### The UI uses the hotkey or corresponding cmd inputs to interact with other nodes to run the trivia game.  
+### Below is a list of the implemented interactions.  
+  
 ### Topics
 - `game_log` with type `GameLog`. This is the message which appears on the main UI screen.  
   
@@ -22,12 +31,6 @@ The UI uses the hotkey or corresponding cmd inputs to interact with other nodes 
 ### Actions  
 - `move_sami` is how the `sami_control` node sends json files to the physcal robot.  
         It will note wether the arduino is connected, then play the json regardless.  
-  
-Users can enter `input mode` where they can type commands. 
-  
-### Input Mode Current Commands:
-    move <filename.json>        this calls the action client with the filename to move sami
-    connect <port> <baudrate>   this connects to the arduino. Can have 0, 1, or 2 args given.  
   
 ## trivia_tools:  
 These are the supporting nodes that the controller interact with  
