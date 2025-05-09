@@ -32,6 +32,8 @@ class TriviaGame(Node):
         self.moveClient = ActionClient(self, MoveSami, 'move_sami')
         self.arduinoClient = self.create_client(SerialConnect, 'serial_connect')
         self.arduinoConnected = False
+        self.arduinoPort = '/dev/ttyUSB0'
+        self.arduinoBaudrate = int(115200)
         #self.answerClient = ActionClient(self, GetAnswers, 'get_answers')
         self.questionClient = self.create_client(NewQuestion, 'new_question')
 
@@ -78,7 +80,11 @@ class TriviaGame(Node):
                         # get new question
                         #print(self.question.response.q)
                 elif key == ord('c'):
-                    pass # connect to arduino
+                    # save port, baudrate to class instance var
+                    port = self.drawInputMode(stdscr, height, width, usable_height, mode="connect_port")
+                    baudrate = self.drawInputMode(stdscr, height, width, usable_height, mode="connect_baud")
+                    self.connectSAMI()
+                    
                 elif key == ord('i'):
                     # input mode
                     self.log("Entering Input mode")
@@ -124,7 +130,7 @@ class TriviaGame(Node):
             stdscr.addstr(height-2,58, "[I] Input Mode", curses.color_pair(1))
         
 
-    def drawInputMode(self, stdscr, height, width, usable_height):
+    def drawInputMode(self, stdscr, height, width, usable_height, mode="cmd"):
         """
         Handles user cmd input mode. 
         reuturns the input for another function to handle, kind of like mini shell
@@ -132,7 +138,12 @@ class TriviaGame(Node):
         input_y = height-4
         input_x = 6
         stdscr.addstr(input_y, 0, "CMD >")
-        stdscr.addstr(input_y - 1, 0, "INPUT MODE: ESC TO LEAVE", curses.color_pair(1))
+        if mode == "cmd":
+            stdscr.addstr(input_y - 1, 0, "INPUT MODE: ESC TO LEAVE", curses.color_pair(1))
+        elif mode == "connect_port":
+            stdscr.addstr(input_y - 1, 0, f"CONFIRM OR ENTER NEW PORT: {self.arduinoPort}", curses.color_pair(1))
+        elif mode == "connect_baud":
+            stdscr.addstr(input_y - 1, 0, f"CONFIRM OR ENTER NEW BAUDRATE: {self.arduinoBaudrate}", curses.color_pair(1))
         #curses.echo()
         #stdscr.nodelay(False) # enter blocking mode
         user_input = ""
@@ -179,6 +190,7 @@ class TriviaGame(Node):
         Logic to handle input commands
         Available commands
             move <filename.json>        this calls the action client with the filename to move sami
+            connect <port> <baudrate>   this connects to the arduino
         """
         if user_input is None:
             #self.log("[USER INPUT] : [NONE]")
@@ -200,6 +212,23 @@ class TriviaGame(Node):
             filename = args[0]
             self.moveSami(filename)
             return
+        elif cmd == "connect":
+            if len(args) == 0:
+                self.log(f"No args specified. Connecting to default port: {self.arduinoPort} and baudrate: {self.arduinoBaudrate}")
+            elif len(args) == 1:
+                self.arduinoPort = args[0]
+                self.log(f"Changed port to {args[0]}")
+            elif len(args) == 2:
+                try:
+                    self.arduinoPort = str(args[0])
+                    self.log(f"Changed port to {args[0]}")
+                    self.arduinoBaudrate = int(args[1])
+                    self.log(f"Changed baudrate to {args[1]}")
+                    self.connectSAMI()
+                except TypeError as e:
+                    self.log(f"ERROR: {e}")
+                except ValueError as e:
+                    self.log(f"ERROR {e}")
         else:
             self.log("[USER INPUT] theres not anything implemented here yet")
             return
@@ -223,7 +252,27 @@ class TriviaGame(Node):
 
     def gotQuestion(self, future):
         self.question = future.result()
-        print(self.question.new_q.q)
+        self.log(f"Got new question: {self.question.new_q.q}")
+        #print(self.question.new_q.q)
+
+    def connectSAMI(self):
+        """
+        Service request for connecting to sami arduino serial
+        """
+        if self.arduinoConnected:
+            self.log("Already connected!")
+            return
+        request = SerialConnect.Request()
+        request.port = self.arduinoPort
+        request.baudrate = self.arduinoBaudrate
+        self.log("Connecting to SAMI...")
+        self.future = self.arduinoClient.call_async(request)
+        self.future.add_done_callback(self.connectedSAMI)
+    
+    def connectedSAMI(self, future):
+        result = future.result()
+        self.arduinoConnected = result.connected
+        self.log(f"[SERIAL CONNECTION STATUS]: {self.arduinoConnected}")
 
     def getAnswer(self):
         """

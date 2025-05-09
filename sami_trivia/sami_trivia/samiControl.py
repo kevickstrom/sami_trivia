@@ -99,6 +99,8 @@ class SamiControl(Node):
         except serial.SerialException as e:
             self.log(f'Error with serial connection: {e}')
             #self.get_logger().error(f'Error with serial connection: {e}')
+            response.connected = False
+        return response
 
     def send_joint_command(self, joint_ids, joint_angles, joint_time):
         """
