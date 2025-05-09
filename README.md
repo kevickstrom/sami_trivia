@@ -35,11 +35,13 @@ Eventually they will be all be added into a launch file
   
 ### json controller:  
 `ros2 run sami_trivia sami_control`  
+This node handles connecting to the arduino via serial and reads json files to send joint commands.  
   
 ### new question test service:  
-`ros2 run sami_trivia q_tets`  
+`ros2 run sami_trivia q_test`  
 This is a node that just gives the same question every time.  
 
 
 ### TODO  
 - implement pausing / stopping json sending with space
+- create trivia_tools launch file  
