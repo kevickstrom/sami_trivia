@@ -25,7 +25,9 @@ setup(
         'console_scripts': [
             'trivia = sami_trivia.triviaGame:createGame',
             'sami_control = sami_trivia.samiControl:createController',
-            'q_test = sami_trivia.questiontesting:main'
+            'q_test = sami_trivia.questiontesting:main',
+            'get_question = sami_trivia.get_question:main',
+            'get_question_test_client = sami_trivia.get_question_test_client:main',            
         ],
     },
 )
