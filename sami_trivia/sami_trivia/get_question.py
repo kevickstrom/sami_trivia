@@ -14,7 +14,8 @@ from rclpy.node import Node
 import random
 import csv
 
-from sami_trivia_msgs.srv import Get_Question_Service
+from sami_trivia_msgs.srv import NewQuestion
+from sami_trivia_msgs.msg import Question
 
 
 class QuestionServiceServer(Node):
@@ -23,7 +24,7 @@ class QuestionServiceServer(Node):
 		super().__init__('get_question')
 
 		# Create a service, with a type, name, and callback.
-		self.service = self.create_service(Get_Question_Service, 'get_question_service', self.callback)
+		self.service = self.create_service(NewQuestion, 'get_question_service', self.callback)
 		
 		# stores list of questions that have been asked already (list of ints)
 		self.asked_questions = []
@@ -42,28 +43,29 @@ class QuestionServiceServer(Node):
 		self.row_data = self.bank_data[self.question_row]
 
 		self.question = self.row_data[0]
-		response.q = self.question
+		response.new_q.q = self.question
 
 		self.num_answers = int((len(self.row_data)-1))
-		response.numAns = self.num_answers
+		response.new_q.num_ans = self.num_answers
 
 		self.answer_list = self.row_data.pop(0)
 		self.answer_string = ' or '.join(self.answer_list)
-		response.ans = self.answer_list
+		
+		response.new_q.ans = self.answer_list
 
-		# generating mp3s 
-		response.ansMP3 = "answer.mp3"
-		response.questionMP3 = "question.mp3"
-		'''
-		myQ = gTTS(text = self.question, lang = "en", slow = False)
-		myQ.save("question.mp3")
-		myA = gTTS(text = self.question, lang = "en", slow = False)
-		myA.save("answer.mp3")
-		'''		
-		# logging
+		#mp3 file names
+		response.new_q.ans_mp3 = self.row_data[0].join("_answer.mp3")
+		response.new_q.question_mp3 = self.row_data[0].join("_question.mp3")
+		
+
+		# test logging
 		self.get_logger().info(f'Got request for question')
 		self.get_logger().info(f'Question is {self.question}')
 		self.get_logger().info(f'Answer is {self.answer_string}')
+		
+		self.get_logger().info(f'Question file is {response.new_q.questionMP3}')
+		self.get_logger().info(f'Answer file is {response.new_q.ansMP3}')
+		
 		
 		return response
 
