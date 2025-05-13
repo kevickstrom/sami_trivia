@@ -14,9 +14,12 @@ from rclpy.node import Node
 
 import random
 import csv
+import os
 
 from sami_trivia_msgs.srv import NewQuestion
 from sami_trivia_msgs.msg import Question
+
+from ament_index_python.packages import get_package_share_directory
 
 
 class QuestionServiceServer(Node):
@@ -89,7 +92,13 @@ class QuestionServiceServer(Node):
 
 	# reads all data in question bank
 	def csv_reader(self):
-		with open('question_bank.csv') as f:
+		pkg_path = get_package_share_directory('sami_trivia')
+		file_path = os.path.join(pkg_path, 'assets/', 'question_bank.csv')
+		if not os.path.exists(file_path):
+			#self.log(f"File not found: {file_path}")
+			#result.completed = False
+			return
+		with open(file_path) as f:
 			self.bank_data = list(csv.reader(f))
 		
 		

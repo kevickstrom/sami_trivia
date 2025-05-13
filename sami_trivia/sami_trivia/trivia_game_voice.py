@@ -6,11 +6,11 @@ import gTTS
 import playsound
 import tempfile
 import os
-
+'''
 from openai
 from gtts
 from playsound
-
+'''
 
 client = OpenAI(api_key="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")  # <--- Put your real OpenAI key here
 
