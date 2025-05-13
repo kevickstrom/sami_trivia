@@ -1,9 +1,9 @@
 #This is the initial commit
 
 import speech_recognition as sr
-import OpenAI
-import gTTS
-import playsound
+from openai import OpenAI
+from gtts import gTTS
+from playsound import playsound
 import tempfile
 import os
 '''

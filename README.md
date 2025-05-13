@@ -1,6 +1,18 @@
 # ROB 421 SAMI Trivia Interaction Package  
   
-### overall controller:  
+### Dependencies:  
+- playsound  
+- SpeechRecognition  
+- PyAudio  
+  - `sudo apt-get install portaudio19.dev` before installing PyAudio  
+- gtts  
+- openai  
+  
+### triviaTools:  
+`ros2 launch sami_trivia triviaTools.py`  
+This starts all the nodes besides the user UI.  
+  
+### UI controller:  
 `ros2 run sami_trivia trivia`  
 
 This is a terminal like UI built with curses.  
@@ -32,19 +44,10 @@ Users can enter `input mode` where they can type commands.
 - `move_sami` is how the `sami_control` node sends json files to the physcal robot.  
         It will note wether the arduino is connected, then play the json regardless.  
   
-## trivia_tools:  
-These are the supporting nodes that the controller interact with  
-Eventually they will be all be added into a launch file  
+## triviaTools.py nodes:  
+- `sami_control`: arduino / json movement handler
+- `get_question`: question bank
   
-### json controller:  
-`ros2 run sami_trivia sami_control`  
-This node handles connecting to the arduino via serial and reads json files to send joint commands.  
-  
-### new question test service:  
-`ros2 run sami_trivia q_test`  
-This is a node that just gives the same question every time.  
-
 
 ### TODO  
 - implement pausing / stopping json sending with space
-- create trivia_tools launch file  
