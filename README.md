@@ -2,6 +2,7 @@
   
 ### Dependencies:  
 - playsound  
+  - may need `pip install playsound==1.2.2`  
 - SpeechRecognition  
 - PyAudio  
   - `sudo apt-get install portaudio19.dev` before installing PyAudio  

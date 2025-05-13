@@ -1,18 +1,125 @@
-#This is the initial commit
+#!#/usr/bin/env python3
+
+# trivia_game_voice.py
+#
+#
+#
+
 
 import speech_recognition as sr
 from openai import OpenAI
 from gtts import gTTS
 from playsound import playsound
 import tempfile
+import threading
 import os
-'''
-from openai
-from gtts
-from playsound
-'''
 
-client = OpenAI(api_key="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")  # <--- Put your real OpenAI key here
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionServer, CancelResponse
+from ament_index_python.packages import get_package_share_directory
+
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+
+from sami_trivia_msgs.msg import Question, GameLog
+from sami_trivia_msgs.srv import CheckAnswer
+from sami_trivia_msgs.action import Speak, Listen
+
+# ACTIONS:
+# speak
+# listen / transcribe
+
+# SERVICES:
+# check answer
+
+
+class gameVoice(Node):
+        """
+        This handles speaking and listening for answers
+        Uses chatgpt api to determine answer correctness
+        """
+        def __init__(self):
+            super().__init__('game_voice')
+            self.client = OpenAI(api_key="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")
+            self.talking = threading.Lock() # only allow one action client to have control
+            self.listening = threading.Lock() # same with listening
+            self.logging = True
+            if self.logging:
+                self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
+            self.answerService = self.create_service(CheckAnswer, 'check_answer', self.checkAnswer)
+            self.talkServer = ActionServer(self, Speak, 'speak', self.speak_cb,
+                        callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_speak_cb)
+            self.listenServer = ActionServer(self, Listen, 'listen', self.listen_cb,
+                        callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_listen_cb)
+
+        def listen_cb(self, goal):
+            """
+
+            """
+            pass
+
+        def cancel_listen_cb(self, goal):
+            """
+
+            """
+            pass
+
+        def speak_cb(self, goal):
+            """
+            Action Server 
+            """
+            with self.talking:
+                result = Speak.Result()
+                text = goal.words
+                self.log(f"SAMI says: {text}")
+                tts = gTTS(text=text, lang='en')
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                        tts.save(fp.name)
+                        playsound(fp.name)
+                        os.remove(fp.name)
+                    self.log("Done speaking.")
+                    result.completed = True
+                    goal.succeed()
+                    return result
+                except Exception as e:
+                    self.log(f"speaking broken: {e}")
+                    result.completed = False
+                    goal.abort()
+                    return result
+
+        def cancel_speak_cb(self, goal_handle):
+            self.log("Cancelling speak")
+            return CancelResonse.ACCEPT
+
+        def checkAnswer(self, request, response):
+            """
+            Service callback for checking user response against possible answers
+            """
+            pass
+
+        def log(self, msg: str):
+            """
+            Log to get_logger().info().
+            Also published to game_log topic if enabled
+            msg is a string
+            """
+            if self.logging:
+                newmsg = GameLog()
+                newmsg.stamp = self.get_clock().now().to_msg()
+                newmsg.node_name = self.get_name()
+                newmsg.content = msg
+                self.pubLog.publish(newmsg)
+            self.get_logger().info(msg)
+
+
+
+
+
+
+
+
 
 trivia_question = "What is the capital of France?"
 correct_answer = "Paris"
@@ -63,13 +170,19 @@ def check_answer(user_answer):
     result = response.choices[0].message.content.strip()
     speak(f"That is {result}.")
     return result
-
+"""
 def main():
     speak("Welcome to the trivia game.")
     speak(f"Here is your question: {trivia_question}")
     print("Question:", trivia_question)
     user_response = listen_and_transcribe()
     check_answer(user_response)
-
+"""
+def main(args=None):
+    rclpy.init(args=args)
+    voice = gameVoice()
+    rclpy.spin(voice)
+    rclpy.shutdown()
+    
 if __name__ == "__main__":
     main()

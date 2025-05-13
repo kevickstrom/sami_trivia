@@ -26,6 +26,9 @@ class QuestionServiceServer(Node):
 	def __init__(self):
 		# Initialize the superclass.
 		super().__init__('get_question')
+		self.logging = True
+            if self.logging:
+                self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
 
 		# Create a service, with a type, name, and callback.
 		self.service = self.create_service(NewQuestion, 'new_question', self.callback)
@@ -108,6 +111,20 @@ class QuestionServiceServer(Node):
 		self.question_order.pop(0)
 
 		return question_num
+
+	def log(self, msg: str):
+            """
+            Log to get_logger().info().
+            Also published to game_log topic if enabled
+            msg is a string
+            """
+            if self.logging:
+                newmsg = GameLog()
+                newmsg.stamp = self.get_clock().now().to_msg()
+                newmsg.node_name = self.get_name()
+                newmsg.content = msg
+                self.pubLog.publish(newmsg)
+            self.get_logger().info(msg)
 
 
 # This is the entry point for the node.
