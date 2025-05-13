@@ -17,7 +17,7 @@ import csv
 import os
 
 from sami_trivia_msgs.srv import NewQuestion
-from sami_trivia_msgs.msg import Question
+from sami_trivia_msgs.msg import Question, GameLog
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -27,8 +27,8 @@ class QuestionServiceServer(Node):
 		# Initialize the superclass.
 		super().__init__('get_question')
 		self.logging = True
-            if self.logging:
-                self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
+		if self.logging:
+			self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
 
 		# Create a service, with a type, name, and callback.
 		self.service = self.create_service(NewQuestion, 'new_question', self.callback)

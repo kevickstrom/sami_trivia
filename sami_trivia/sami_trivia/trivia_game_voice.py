@@ -52,18 +52,54 @@ class gameVoice(Node):
                         callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_speak_cb)
             self.listenServer = ActionServer(self, Listen, 'listen', self.listen_cb,
                         callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_listen_cb)
+            self.talkClient = self.create_client(Speak, 'speak')
 
         def listen_cb(self, goal):
             """
+            Gathers audio input from user
+            """
+            with self.listening:
+                result = Listen.Result()
+                while not self.talkClient.wait_for_service(timeout_sec=1):
+                    self.log("waiting for speaking server")
+                recognizer = sr.Recognizer()
+                with sr.Microphone() as source:
+                    #speak("Press Enter when you're ready to record your answer.")
+                    words = Speak.Request()
+                    words.words = "What's your answer? I'm listening..."
+                    self.talkResponse = self.talkClient.call_async(request)
+                    self.log("Listening...")
+                    audio = recognizer.listen(source)
+
+                try:
+                    text = recognizer.recognize_google(audio)
+                    words = Speak.Request()
+                    words.words = f"You said: {text}"
+                    self.talkResponse = self.talkClient.call_async(request)
+                    result.words = text
+                    goal.succeed()
+                    return result
+                    #speak(f"You said: {text}")
+                    #return text
+                except sr.UnknownValueError:
+                    #speak("Sorry, I didn't catch that.")
+                    #return "Could not understand audio"
+                    self.log("IDK what u said")
+                except sr.RequestError as e:
+                    #speak("Speech service error occurred.")
+                    #return f"Error: {e}"
+                    self.log(f"Error: {e}")
+
+                result.words = "I give up."
+                goal.abort()
+                return result
+
+        def cancel_listen_cb(self, goal_handle):
+            """
 
             """
-            pass
-
-        def cancel_listen_cb(self, goal):
-            """
-
-            """
-            pass
+            self.log("Cancelling speak")
+            return CancelResonse.ACCEPT
 
         def speak_cb(self, goal):
             """
@@ -97,7 +133,36 @@ class gameVoice(Node):
             """
             Service callback for checking user response against possible answers
             """
-            pass
+            questionMSG = request.question
+            trivia_question = questionMSG.q
+            correct_answer = questionMSG.ans
+            prompt = (
+                f"The trivia question is: '{trivia_question}'. "
+                f"The correct answer is '{correct_answer}'. "
+                f"The user answered: '{user_answer}'. "
+                f"Is the user's answer correct? Reply with only 'Correct' or 'Incorrect'."
+            )
+
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an assistant that checks trivia answers."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+
+            result = response.choices[0].message.content.strip()
+            words = Speak.Request()
+            #speak(f"That is {result}.")
+            if result == 'Correct':
+                words.words = "That is correct!"
+                response.correct = True
+            else:
+                words.words = "WRONG!"
+                response.correct = False
+            self.talkResponse = self.talkClient.call_async(request)
+            self.log(f"The answer is {result}!")
+            return response
 
         def log(self, msg: str):
             """
@@ -120,7 +185,7 @@ class gameVoice(Node):
 
 
 
-
+'''
 trivia_question = "What is the capital of France?"
 correct_answer = "Paris"
 
@@ -178,6 +243,7 @@ def main():
     user_response = listen_and_transcribe()
     check_answer(user_response)
 """
+'''
 def main(args=None):
     rclpy.init(args=args)
     voice = gameVoice()
