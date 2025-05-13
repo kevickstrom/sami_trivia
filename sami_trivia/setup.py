@@ -31,7 +31,8 @@ setup(
             'sami_control = sami_trivia.samiControl:createController',
             'q_test = sami_trivia.questiontesting:main',
             'get_question = sami_trivia.get_question:main',
-            'get_question_test_client = sami_trivia.get_question_test_client:main',            
+            'get_question_test_client = sami_trivia.get_question_test_client:main',
+            'game_voice = sami_trivia.trivia_game_voice:main'            
         ],
     },
 )

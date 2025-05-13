@@ -16,7 +16,7 @@ import os
 
 import rclpy
 from rclpy.node import Node
-from rclpy.action import ActionServer, CancelResponse
+from rclpy.action import ActionServer, CancelResponse, ActionClient
 from ament_index_python.packages import get_package_share_directory
 
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -52,7 +52,7 @@ class gameVoice(Node):
                         callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_speak_cb)
             self.listenServer = ActionServer(self, Listen, 'listen', self.listen_cb,
                         callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_listen_cb)
-            self.talkClient = self.create_client(Speak, 'speak')
+            self.talkClient = ActionClient(self, Speak, 'speak')
 
         def listen_cb(self, goal):
             """
@@ -60,22 +60,16 @@ class gameVoice(Node):
             """
             with self.listening:
                 result = Listen.Result()
-                while not self.talkClient.wait_for_service(timeout_sec=1):
-                    self.log("waiting for speaking server")
                 recognizer = sr.Recognizer()
                 with sr.Microphone() as source:
                     #speak("Press Enter when you're ready to record your answer.")
-                    words = Speak.Request()
-                    words.words = "What's your answer? I'm listening..."
-                    self.talkResponse = self.talkClient.call_async(request)
+                    self.speak_myself("What's your answer? I'm listening...")
                     self.log("Listening...")
                     audio = recognizer.listen(source)
 
                 try:
                     text = recognizer.recognize_google(audio)
-                    words = Speak.Request()
-                    words.words = f"You said: {text}"
-                    self.talkResponse = self.talkClient.call_async(request)
+                    self.speak_myself(f"You said: {text}")
                     result.words = text
                     goal.succeed()
                     return result
@@ -93,6 +87,15 @@ class gameVoice(Node):
                 result.words = "I give up."
                 goal.abort()
                 return result
+
+        def speak_myself(self, msg: str):
+            """
+            Call the action server to speak with the given string
+            """
+            self.talkClient.wait_for_server()
+            words = Speak.Goal()
+            words.words = msg
+            self.talkResponse = self.talkClient.send_goal_async(goal)
 
         def cancel_listen_cb(self, goal_handle):
             """
@@ -152,15 +155,13 @@ class gameVoice(Node):
             )
 
             result = response.choices[0].message.content.strip()
-            words = Speak.Request()
             #speak(f"That is {result}.")
             if result == 'Correct':
-                words.words = "That is correct!"
+                self.speak_myself("That is correct!")
                 response.correct = True
             else:
-                words.words = "WRONG!"
+                self.speak_myself("WRONG!")
                 response.correct = False
-            self.talkResponse = self.talkClient.call_async(request)
             self.log(f"The answer is {result}!")
             return response
 

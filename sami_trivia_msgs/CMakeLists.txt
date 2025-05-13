@@ -30,6 +30,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/GameLog.msg"
   "srv/NewQuestion.srv"
   "srv/SerialConnect.srv"
+  "srv/CheckAnswer.srv"
   "action/MoveSami.action"
+  "action/Listen.action"
+  "action/Speak.action"
 )
 ament_package()

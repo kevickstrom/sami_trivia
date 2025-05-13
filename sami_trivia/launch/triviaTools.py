@@ -20,6 +20,12 @@ def generate_launch_description():
             executable='get_question',
             name='get_question',
         ),
+        # Voice, Listen, Check Answer
+        launch_ros.actions.Node(
+            package='sami_trivia',
+            executable='game_voice',
+            name='game_voice',
+        ),
         ])
     
 
