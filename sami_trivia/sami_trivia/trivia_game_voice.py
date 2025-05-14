@@ -139,6 +139,7 @@ class gameVoice(Node):
             questionMSG = request.question
             trivia_question = questionMSG.q
             correct_answer = questionMSG.ans
+            user_answer = request.user
             prompt = (
                 f"The trivia question is: '{trivia_question}'. "
                 f"The correct answer is '{correct_answer}'. "

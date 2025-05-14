@@ -1,5 +1,6 @@
 # inputs
 Question question
+string user
 ---
 # outputs
 bool correct

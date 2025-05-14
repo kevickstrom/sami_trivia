@@ -14,8 +14,8 @@ from rclpy.time import Time
 import curses
 
 from sami_trivia_msgs.msg import Question, GameLog
-from sami_trivia_msgs.srv import NewQuestion, SerialConnect
-from sami_trivia_msgs.action import MoveSami
+from sami_trivia_msgs.srv import NewQuestion, SerialConnect, CheckAnswer
+from sami_trivia_msgs.action import MoveSami, Speak, Listen
 
 class TriviaGame(Node):
     def __init__(self):
@@ -25,17 +25,26 @@ class TriviaGame(Node):
         #self.question = None
         self.started = False
         self.waiting = True
+        self.speaking = False
+        self.listening = False
+        self.moving = False
         self.inputMode = False
+        self.userAnswer = ""
         self.gameLog = []
         self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
         self.subLog = self.create_subscription(GameLog, 'game_log', self.logsubscriber, 10)
+        self.speakClient = ActionClient(self, Speak, 'speak')
+        self.listenClient = ActionClient(self, Listen, 'listen')
         self.moveClient = ActionClient(self, MoveSami, 'move_sami')
+        self.answerClient = self.create_client(CheckAnswer, 'check_answer')
         self.arduinoClient = self.create_client(SerialConnect, 'serial_connect')
         self.arduinoConnected = False
         self.arduinoPort = '/dev/ttyUSB0'
         self.arduinoBaudrate = int(115200)
         #self.answerClient = ActionClient(self, GetAnswers, 'get_answers')
         self.questionClient = self.create_client(NewQuestion, 'new_question')
+
+    # TODO: implement logic from get question to answer
 
     def startGame(self, stdscr):
         """
@@ -74,11 +83,12 @@ class TriviaGame(Node):
                         self.started = True
                         self.log("Starting game...")
                     #self.get_logger().info("Starting game...")
+                
                 elif key == 10: # enter key
                     if self.waiting:
                         self.getQuestion()
-                        # get new question
-                        #print(self.question.response.q)
+                        # self.waiting is cleared in cb
+                        
                 elif key == ord('c'):
                     # save port, baudrate to class instance var
                     port = self.drawInputMode(stdscr, height, width, usable_height, mode="connect_port")
@@ -118,16 +128,27 @@ class TriviaGame(Node):
         # draw keybinds
         stdscr.addstr(height-3, 0, "-"*(width-1))
         #stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT [C] Connect SAMI [ENTER] New Question")
-        stdscr.addstr(height-2,0,"Keybinds: [Q] QUIT ")
+        key_str = "Keybinds: "
+        q_str = "[Q] QUIT "
+        c_str = "[C] Connect SAMI "
+        i_str = "[I] Input Mode "
+        if self.waiting:
+            enter_str = "[ENTER] New Question "
+        else:
+            enter_str = "[ENTER] Answer Question "
+
+        stdscr.addstr(height-2, 0, key_str)
+        stdscr.addstr(height-2, len(key_str), q_str)
         if not self.arduinoConnected:
-            stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(2))
+            stdscr.addstr(height-2,len(key_str)+len(q_str), c_str, curses.color_pair(2))
         else:
-            stdscr.addstr(height-2,20, "[C] Connect SAMI", curses.color_pair(1))
-        stdscr.addstr(height-2,37, "[ENTER] New Question")
+            stdscr.addstr(height-2,len(key_str)+len(q_str), c_str, curses.color_pair(1))
         if not self.inputMode:
-            stdscr.addstr(height-2,58, "[I] Input Mode")
+            stdscr.addstr(height-2,len(key_str)+len(q_str)+len(c_str), i_str)
         else:
-            stdscr.addstr(height-2,58, "[I] Input Mode", curses.color_pair(1))
+            stdscr.addstr(height-2,len(key_str)+len(q_str)+len(c_str), i_str, curses.color_pair(1))
+
+        stdscr.addstr(height-2,len(key_str)+len(q_str)+len(c_str)+len(i_str), enter_str)
         
 
     def drawInputMode(self, stdscr, height, width, usable_height, mode="cmd"):
@@ -251,8 +272,9 @@ class TriviaGame(Node):
         ###
 
     def gotQuestion(self, future):
-        self.question = future.result()
-        self.log(f"Got new question: {self.question.new_q.q}")
+        self.question = future.result().new_q
+        self.log(f"Got new question: {self.question.q}")
+        self.waiting = False
         #print(self.question.new_q.q)
 
     def connectSAMI(self):
@@ -312,6 +334,67 @@ class TriviaGame(Node):
         Called when moving action has finished
         """
         pass
+
+    def speak(self, msg: str):
+        """
+        Call the action server to speak with the given string
+        """
+        self.speakClient.wait_for_server()
+        words = Speak.Goal()
+        words.words = msg
+        self.speakResponse = self.speakClient.send_goal_async(goal)
+        self.speakResponse.add_done_callback(self.speakresponse)
+        self.speaking = True
+
+    def speakresponse(self, future):
+        """
+        called when action is accepted or rejected
+        just registers callback to toggle off speaking bool
+        """
+        self.speakGoalHandle = future.result()
+        if not self.speakGoalHandle.accepted:
+            self.log("Speaking rejected")
+        self.speakResultHandle = self.speakGoalHandle.get_result_async()
+        self.speakResultHandle.add_done_callback(self.doneSpeaking)
+
+    def doneSpeaking(self, future):
+        self.speaking = False
+        
+
+    def listen(self):
+        """
+        Call the action server to get user voice input
+        """
+        self.listenClient.wait_for_server()
+        go = Listen.Goal()
+        self.listenResponse = self.listenClient.send_goal_async(goal)
+        self.listenResponse.add_done_callback(self.listenresponse)
+        self.listening = True
+        self.userAnswer = ""
+
+    def listenresponse(self, future):
+        self.listenGoalHandle = future.result()
+        if not self.listenGoalHandle.accepted:
+            self.log("Listening rejected")
+        self.listenResultHandle = self.listenGoalHandle.get_result_async()
+        self.listenResultHandle.add_done_callback(self.doneListening)
+    
+    def doneListening(self, future):
+        """
+        Get the user's voice words
+        """
+        self.userAnswer = future.result().words
+        self.listening = False
+        self.log(f"User Voice: {self.userAnswer}")
+
+    def verifyAnswer(self):
+        """
+        
+        """
+        request = CheckAnswer.Request()
+        request.question = self.question
+        request.user = self.userAnswer
+        self.AnswerResponse = self.answerClient.call_async(request)
 
     def log(self, msg):
         """
