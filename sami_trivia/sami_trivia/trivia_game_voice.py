@@ -120,7 +120,7 @@ class gameVoice(Node):
                         self.log("No speech detected before timeout")
                         #self.speak_myself("I didn't hear anything.")
                         result.words = "timeout"
-                        goal.abort()
+                        goal.succeed()
                         return result
                 
 # TODO: issue: keep hitting the unknownValueError and goal is never returned
@@ -129,7 +129,7 @@ class gameVoice(Node):
                     #text = recognizer.recognize_sphinx(audio)
                     text = recognizer.recognize_google(audio)
                     self.log(f"recognized {text}")
-                    #self.speak_myself(f"You said: {text}", block=True)
+                    self.speak_myself(f"You said: {text}", block=True)
                     result.words = text
                     goal.succeed()
                     return result
@@ -138,25 +138,25 @@ class gameVoice(Node):
                     #return "Could not understand audio"
                     self.log("IDK what u said")
                     result.words = "Error"
-                    goal.abort()
+                    goal.succeed()
                     self.log("aborted")
                     return result
                 except sr.RequestError as e:
                     #return f"Error: {e}"
                     self.log(f"Error: {e}")
                     result.words = "Error"
-                    goal.abort()
+                    goal.succeed()
                     return result
                 except sr.WaitTimeoutError:
                     self.log("No speech detected before timeout")
                     #self.speak_myself("I didn't hear anything.")
                     result.words = "timeout"
-                    goal.abort()
+                    goal.succeed()
                     return result
 
 
                 result.words = "I give up."
-                goal.abort()
+                goal.succeed()
                 return result
         
         def speak_myself(self, msg: str, block=False):

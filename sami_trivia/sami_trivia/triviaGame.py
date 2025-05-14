@@ -40,7 +40,7 @@ class TriviaGame(Node):
         self.answerClient = self.create_client(CheckAnswer, 'check_answer')
         self.arduinoClient = self.create_client(SerialConnect, 'serial_connect')
         self.arduinoConnected = False
-        self.arduinoPort = '/dev/ttyUSB0'
+        self.arduinoPort = '/dev/ttyACM0'
         self.arduinoBaudrate = int(115200)
         #self.answerClient = ActionClient(self, GetAnswers, 'get_answers')
         self.questionClient = self.create_client(NewQuestion, 'new_question')
