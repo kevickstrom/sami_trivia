@@ -387,6 +387,7 @@ class TriviaGame(Node):
         self.log("have listen handle")
         if not self.listenGoalHandle.accepted:
             self.log("Listening rejected")
+            return
         self.listenResultHandle = self.listenGoalHandle.get_result_async()
         self.listenResultHandle.add_done_callback(self.doneListening)
         self.log("waiting for listen to finish")

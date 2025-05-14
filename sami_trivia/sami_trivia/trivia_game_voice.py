@@ -118,32 +118,30 @@ class gameVoice(Node):
                         self.log("found audio")
                     except sr.WaitTimeoutError:
                         self.log("No speech detected before timeout")
-                        self.speak_myself("I didn't hear anything.")
+                        #self.speak_myself("I didn't hear anything.")
                         result.words = "timeout"
                         goal.abort()
                         return result
                 
-
+# TODO: issue: keep hitting the unknownValueError and goal is never returned
                 try:
                     self.log("try to recognize")
                     #text = recognizer.recognize_sphinx(audio)
                     text = recognizer.recognize_google(audio)
                     self.log(f"recognized {text}")
-                    self.speak_myself(f"You said: {text}", block=True)
+                    #self.speak_myself(f"You said: {text}", block=True)
                     result.words = text
                     goal.succeed()
                     return result
-                    #speak(f"You said: {text}")
                     #return text
                 except sr.UnknownValueError:
-                    #speak("Sorry, I didn't catch that.")
                     #return "Could not understand audio"
                     self.log("IDK what u said")
                     result.words = "Error"
                     goal.abort()
+                    self.log("aborted")
                     return result
                 except sr.RequestError as e:
-                    #speak("Speech service error occurred.")
                     #return f"Error: {e}"
                     self.log(f"Error: {e}")
                     result.words = "Error"
@@ -250,12 +248,12 @@ class gameVoice(Node):
             '''
             try:
                 ai_resp = self.client.chat.completions.create(
-                    model="gpt-4",               # or whatever model you use
+                    model="gpt-4",
                     messages=[
                         {"role": "system", "content": "You are an assistant that checks trivia answers."},
                         {"role": "user",   "content": prompt}
                     ],
-                    temperature=0                      # deterministic
+                    temperature=0
                 )
                 verdict = ai_resp.choices[0].message.content.strip().lower()
             except Exception as e:
