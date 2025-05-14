@@ -48,6 +48,8 @@ Users can enter `input mode` where they can type commands.
 ## triviaTools.py nodes:  
 - `sami_control`: arduino / json movement handler
 - `get_question`: question bank
+
+testing  `ros2 action send_goal /listen sami_trivia_msgs/action/Listen "{}"`  
   
 
 ### TODO  

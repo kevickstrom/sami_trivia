@@ -380,21 +380,26 @@ class TriviaGame(Node):
         self.listenResponse.add_done_callback(self.listenresponse)
         self.listening = True
         self.userAnswer = ""
+        self.log("Added listen accept call")
 
     def listenresponse(self, future):
         self.listenGoalHandle = future.result()
+        self.log("have listen handle")
         if not self.listenGoalHandle.accepted:
             self.log("Listening rejected")
         self.listenResultHandle = self.listenGoalHandle.get_result_async()
         self.listenResultHandle.add_done_callback(self.doneListening)
+        self.log("waiting for listen to finish")
     
     def doneListening(self, future):
         """
         Get the user's voice words
         """
+        self.log("in donelistening")
         self.userAnswer = future.result().result.words
         self.listening = False
         self.log(f"User Voice: {self.userAnswer}")
+        self.log("verifying answer...")
         self.verifyAnswer()
 
     def verifyAnswer(self, timeout=100.0):
@@ -414,19 +419,22 @@ class TriviaGame(Node):
         future = self.answerClient.call_async(request)
         if not rclpy.spin_until_future_complete(self, future, timeout_sec=timeout):
             self.log("Timed out waiting for CheckAnswer response")
-            self.readyForNext = True
-            self.waiting = True  
+            #self.readyForNext = True
+            #self.waiting = True  
             return False
         try:
             srv_res = future.result()            # CheckAnswer.Response
-            self.readyForNext = True
-            self.waiting = True  
-            return srv_res.correct
+            #self.readyForNext = True
+            #self.waiting = True  
+            #return srv_res.correct
         except Exception as e:                   # future.set_exception()
             self.get_logger().error(f"Service call failed: {e}")
-            self.readyForNext = True
-            self.waiting = True  
-            return False
+            #self.readyForNext = True
+            #self.waiting = True  
+            #return False
+        
+        self.move_sami("Thinking1.json")
+
 
     def log(self, msg):
         """

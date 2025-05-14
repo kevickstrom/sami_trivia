@@ -122,11 +122,14 @@ class gameVoice(Node):
                         result.words = "timeout"
                         goal.abort()
                         return result
-                    
+                
 
                 try:
+                    self.log("try to recognize")
+                    #text = recognizer.recognize_sphinx(audio)
                     text = recognizer.recognize_google(audio)
-                    self.speak_myself(f"You said: {text}")
+                    self.log(f"recognized {text}")
+                    self.speak_myself(f"You said: {text}", block=True)
                     result.words = text
                     goal.succeed()
                     return result
@@ -136,14 +139,22 @@ class gameVoice(Node):
                     #speak("Sorry, I didn't catch that.")
                     #return "Could not understand audio"
                     self.log("IDK what u said")
+                    result.words = "Error"
+                    goal.abort()
+                    return result
                 except sr.RequestError as e:
                     #speak("Speech service error occurred.")
                     #return f"Error: {e}"
                     self.log(f"Error: {e}")
+                    result.words = "Error"
+                    goal.abort()
+                    return result
                 except sr.WaitTimeoutError:
                     self.log("No speech detected before timeout")
                     #self.speak_myself("I didn't hear anything.")
                     result.words = "timeout"
+                    goal.abort()
+                    return result
 
 
                 result.words = "I give up."
@@ -154,7 +165,9 @@ class gameVoice(Node):
             """
             Call the action server to speak with the given string
             """
-            self.talkClient.wait_for_server()
+            if not self.talkClient.wait_for_server(timeout_sec=30):
+                self.log("TTS server not available")
+                return
             words = Speak.Goal()
             words.words = msg
             self.talkResponse = self.talkClient.send_goal_async(words)
@@ -169,7 +182,7 @@ class gameVoice(Node):
                 self.get_logger().warn("TTS goal was rejected")
                 return
             result_future = goal_handle.get_result_async()
-            if not rclpy.spin_until_future_complete(self, result_future, timeout_sec=timeout):
+            if not rclpy.spin_until_future_complete(self, result_future, timeout_sec=30):
                 self.log("Timed out waiting for TTS result")
                 return
 
@@ -269,72 +282,6 @@ class gameVoice(Node):
                 self.pubLog.publish(newmsg)
             self.get_logger().info(msg)
 
-
-
-
-
-
-
-
-'''
-trivia_question = "What is the capital of France?"
-correct_answer = "Paris"
-
-def speak(text):
-    print(f"SAMI says: {text}")
-    tts = gTTS(text=text, lang='en')
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        tts.save(fp.name)
-        playsound(fp.name)
-        os.remove(fp.name)
-
-def listen_and_transcribe():
-    recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        speak("Press Enter when you're ready to record your answer.")
-        input("Press Enter to start recording...")
-        speak("Listening. Speak now.")
-        audio = recognizer.listen(source)
-
-    try:
-        text = recognizer.recognize_google(audio)
-        speak(f"You said: {text}")
-        return text
-    except sr.UnknownValueError:
-        speak("Sorry, I didn't catch that.")
-        return "Could not understand audio"
-    except sr.RequestError as e:
-        speak("Speech service error occurred.")
-        return f"Error: {e}"
-
-def check_answer(user_answer):
-    prompt = (
-        f"The trivia question is: '{trivia_question}'. "
-        f"The correct answer is '{correct_answer}'. "
-        f"The user answered: '{user_answer}'. "
-        f"Is the user's answer correct? Reply with only 'Correct' or 'Incorrect'."
-    )
-
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are an assistant that checks trivia answers."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    result = response.choices[0].message.content.strip()
-    speak(f"That is {result}.")
-    return result
-"""
-def main():
-    speak("Welcome to the trivia game.")
-    speak(f"Here is your question: {trivia_question}")
-    print("Question:", trivia_question)
-    user_response = listen_and_transcribe()
-    check_answer(user_response)
-"""
-'''
 def main(args=None):
     rclpy.init(args=args)
     voice = gameVoice()
