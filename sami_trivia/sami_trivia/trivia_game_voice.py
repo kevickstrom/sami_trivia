@@ -13,18 +13,23 @@ from playsound import playsound
 import tempfile
 import threading
 import os
+import pyaudio
+import time
 
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, CancelResponse, ActionClient
 from ament_index_python.packages import get_package_share_directory
 
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 from sami_trivia_msgs.msg import Question, GameLog
 from sami_trivia_msgs.srv import CheckAnswer
 from sami_trivia_msgs.action import Speak, Listen
+
+MIC_INDEX   = 0
+SAMPLE_RATE = 48000
 
 # ACTIONS:
 # speak
@@ -47,25 +52,77 @@ class gameVoice(Node):
             self.logging = True
             if self.logging:
                 self.pubLog = self.create_publisher(GameLog, 'game_log', 10)
+            self.setupAudio()
             self.answerService = self.create_service(CheckAnswer, 'check_answer', self.checkAnswer)
-            self.talkServer = ActionServer(self, Speak, 'speak', self.speak_cb,
-                        callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_speak_cb)
+
+
+            self.tts_client_group = ReentrantCallbackGroup()
+            self.tts_server_group = MutuallyExclusiveCallbackGroup()
+            self.speak_srv_group  = ReentrantCallbackGroup()
+            self.talkClient = ActionClient(
+                self, Speak, "speak", callback_group=self.tts_client_group
+            )
+
+            self.talkServer = ActionServer(
+                self, Speak, "speak",
+                execute_callback=self.speak_cb,
+                callback_group=self.tts_server_group
+            )
+
+            #self.talkServer = ActionServer(self, Speak, 'speak', self.speak_cb,
+            #            callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_speak_cb)
             self.listenServer = ActionServer(self, Listen, 'listen', self.listen_cb,
                         callback_group=ReentrantCallbackGroup(), cancel_callback=self.cancel_listen_cb)
-            self.talkClient = ActionClient(self, Speak, 'speak')
+            #self.talkClient = ActionClient(self, Speak, 'speak')
+
+        def setupAudio(self):
+            """
+            pyaudio config
+            """
+            return
+            p = pyaudio.PyAudio()
+            self.mic_index = None
+            for i in range(p.get_device_count()):
+                info = p.get_device_info_by_index(i)
+                if info["name"].startswith("HDA") and info["maxInputChannels"] >= 1:
+                    self.mic_index = i
+                    break
+            #default_in = p.get_default_input_device_info()["index"] # ALSA / Pulse
+            p.terminate()
 
         def listen_cb(self, goal):
             """
             Gathers audio input from user
             """
             with self.listening:
+                self.speak_myself("What's your answer?", block=True)
+                self.log("Listening...")
                 result = Listen.Result()
                 recognizer = sr.Recognizer()
-                with sr.Microphone() as source:
+
+                with sr.Microphone(device_index=MIC_INDEX,
+                   sample_rate=SAMPLE_RATE) as source:
                     #speak("Press Enter when you're ready to record your answer.")
-                    self.speak_myself("What's your answer? I'm listening...")
-                    self.log("Listening...")
-                    audio = recognizer.listen(source)
+                    recognizer.adjust_for_ambient_noise(source, duration=1.0)
+                    recognizer.energy_threshold = min(recognizer.energy_threshold, 120)
+                    #recognizer.energy_threshold = 100
+                    #recognizer.dynamic_energy_threshold = False 
+
+                    try:
+                        self.log(f"Energy threshold = {recognizer.energy_threshold:.1f}")
+                        audio = recognizer.listen(
+                            source,
+                            timeout=10,            # wait this long for speech *to start*
+                            phrase_time_limit=10
+                        )
+                        self.log("found audio")
+                    except sr.WaitTimeoutError:
+                        self.log("No speech detected before timeout")
+                        self.speak_myself("I didn't hear anything.")
+                        result.words = "timeout"
+                        goal.abort()
+                        return result
+                    
 
                 try:
                     text = recognizer.recognize_google(audio)
@@ -83,26 +140,49 @@ class gameVoice(Node):
                     #speak("Speech service error occurred.")
                     #return f"Error: {e}"
                     self.log(f"Error: {e}")
+                except sr.WaitTimeoutError:
+                    self.log("No speech detected before timeout")
+                    #self.speak_myself("I didn't hear anything.")
+                    result.words = "timeout"
+
 
                 result.words = "I give up."
                 goal.abort()
                 return result
-
-        def speak_myself(self, msg: str):
+        
+        def speak_myself(self, msg: str, block=False):
             """
             Call the action server to speak with the given string
             """
             self.talkClient.wait_for_server()
             words = Speak.Goal()
             words.words = msg
-            self.talkResponse = self.talkClient.send_goal_async(goal)
+            self.talkResponse = self.talkClient.send_goal_async(words)
+
+            if not block:
+                return
+            if not rclpy.spin_until_future_complete(self, self.talkResponse, timeout_sec=30):
+                self.get_logger().error("TTS goal not accepted in time")
+                return
+            goal_handle = goal_future.result()
+            if not goal_handle.accepted:
+                self.get_logger().warn("TTS goal was rejected")
+                return
+            result_future = goal_handle.get_result_async()
+            if not rclpy.spin_until_future_complete(self, result_future, timeout_sec=timeout):
+                self.log("Timed out waiting for TTS result")
+                return
+
+            result = result_future.result().result   # Speak.Result message
+            return
+
 
         def cancel_listen_cb(self, goal_handle):
             """
 
             """
             self.log("Cancelling speak")
-            return CancelResonse.ACCEPT
+            return CancelResponse.ACCEPT
 
         def speak_cb(self, goal):
             """
@@ -110,7 +190,7 @@ class gameVoice(Node):
             """
             with self.talking:
                 result = Speak.Result()
-                text = goal.words
+                text = goal.request.words
                 self.log(f"SAMI says: {text}")
                 tts = gTTS(text=text, lang='en')
                 try:
@@ -146,7 +226,7 @@ class gameVoice(Node):
                 f"The user answered: '{user_answer}'. "
                 f"Is the user's answer correct? Reply with only 'Correct' or 'Incorrect'."
             )
-
+            '''
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -154,16 +234,25 @@ class gameVoice(Node):
                     {"role": "user", "content": prompt}
                 ]
             )
+            '''
+            try:
+                ai_resp = self.client.chat.completions.create(
+                    model="gpt-4",               # or whatever model you use
+                    messages=[
+                        {"role": "system", "content": "You are an assistant that checks trivia answers."},
+                        {"role": "user",   "content": prompt}
+                    ],
+                    temperature=0                      # deterministic
+                )
+                verdict = ai_resp.choices[0].message.content.strip().lower()
+            except Exception as e:
+                self.log(f"OpenAI error: {e}")
+                verdict = "incorrect"
 
-            result = response.choices[0].message.content.strip()
-            #speak(f"That is {result}.")
-            if result == 'Correct':
-                self.speak_myself("That is correct!")
-                response.correct = True
-            else:
-                self.speak_myself("WRONG!")
-                response.correct = False
-            self.log(f"The answer is {result}!")
+            is_correct = verdict.startswith("correct")
+            self.speak_myself("That is correct!" if is_correct else "WRONG!")
+            response.correct = is_correct
+            self.get_logger().info(f"The answer was judged: {verdict}")
             return response
 
         def log(self, msg: str):
@@ -249,7 +338,9 @@ def main():
 def main(args=None):
     rclpy.init(args=args)
     voice = gameVoice()
-    rclpy.spin(voice)
+    executor = MultiThreadedExecutor()      # <-- add this
+    executor.add_node(voice)               # register the node
+    executor.spin()    
     rclpy.shutdown()
     
 if __name__ == "__main__":

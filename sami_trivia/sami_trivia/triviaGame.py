@@ -24,10 +24,11 @@ class TriviaGame(Node):
         self.numPlayers = None
         #self.question = None
         self.started = False
-        self.waiting = True
+        self.waiting = True     # handles enter key between questions
         self.speaking = False
         self.listening = False
         self.moving = False
+        self.readyForNext = False # handles enter key during questions
         self.inputMode = False
         self.userAnswer = ""
         self.gameLog = []
@@ -44,7 +45,6 @@ class TriviaGame(Node):
         #self.answerClient = ActionClient(self, GetAnswers, 'get_answers')
         self.questionClient = self.create_client(NewQuestion, 'new_question')
 
-    # TODO: implement logic from get question to answer
 
     def startGame(self, stdscr):
         """
@@ -88,7 +88,13 @@ class TriviaGame(Node):
                     if self.waiting:
                         self.getQuestion()
                         # self.waiting is cleared in cb
-                        
+                        #  set to true in verify answer
+                    elif self.readyForNext:
+                        # trigger answer via voice
+                        self.readyForNext = False
+                        # get input, this will also handle answer checking
+                        self.listen()
+
                 elif key == ord('c'):
                     # save port, baudrate to class instance var
                     port = self.drawInputMode(stdscr, height, width, usable_height, mode="connect_port")
@@ -276,6 +282,9 @@ class TriviaGame(Node):
         self.log(f"Got new question: {self.question.q}")
         self.waiting = False
         #print(self.question.new_q.q)
+        # call for sami to speak
+        self.speak(self.question.q)
+        # call for sami to move
 
     def connectSAMI(self):
         """
@@ -342,7 +351,7 @@ class TriviaGame(Node):
         self.speakClient.wait_for_server()
         words = Speak.Goal()
         words.words = msg
-        self.speakResponse = self.speakClient.send_goal_async(goal)
+        self.speakResponse = self.speakClient.send_goal_async(words)
         self.speakResponse.add_done_callback(self.speakresponse)
         self.speaking = True
 
@@ -359,7 +368,7 @@ class TriviaGame(Node):
 
     def doneSpeaking(self, future):
         self.speaking = False
-        
+        self.readyForNext = True
 
     def listen(self):
         """
@@ -367,7 +376,7 @@ class TriviaGame(Node):
         """
         self.listenClient.wait_for_server()
         go = Listen.Goal()
-        self.listenResponse = self.listenClient.send_goal_async(goal)
+        self.listenResponse = self.listenClient.send_goal_async(go)
         self.listenResponse.add_done_callback(self.listenresponse)
         self.listening = True
         self.userAnswer = ""
@@ -383,18 +392,41 @@ class TriviaGame(Node):
         """
         Get the user's voice words
         """
-        self.userAnswer = future.result().words
+        self.userAnswer = future.result().result.words
         self.listening = False
         self.log(f"User Voice: {self.userAnswer}")
+        self.verifyAnswer()
 
-    def verifyAnswer(self):
+    def verifyAnswer(self, timeout=100.0):
         """
+        Ask the CheckAnswer service whether the user's answer is correct
+        and block until a response (or timeout).
+        """
+        if not self.answerClient.wait_for_service(timeout_sec=timeout):
+            self.log("CheckAnswer service not available")
+            self.readyForNext = True
+            self.waiting = True  
+            return False
         
-        """
         request = CheckAnswer.Request()
         request.question = self.question
         request.user = self.userAnswer
-        self.AnswerResponse = self.answerClient.call_async(request)
+        future = self.answerClient.call_async(request)
+        if not rclpy.spin_until_future_complete(self, future, timeout_sec=timeout):
+            self.log("Timed out waiting for CheckAnswer response")
+            self.readyForNext = True
+            self.waiting = True  
+            return False
+        try:
+            srv_res = future.result()            # CheckAnswer.Response
+            self.readyForNext = True
+            self.waiting = True  
+            return srv_res.correct
+        except Exception as e:                   # future.set_exception()
+            self.get_logger().error(f"Service call failed: {e}")
+            self.readyForNext = True
+            self.waiting = True  
+            return False
 
     def log(self, msg):
         """
