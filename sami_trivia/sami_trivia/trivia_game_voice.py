@@ -38,6 +38,7 @@ SAMPLE_RATE = 48000
 # SERVICES:
 # check answer
 
+APIKEY = "NONE"
 
 class gameVoice(Node):
         """
@@ -46,7 +47,7 @@ class gameVoice(Node):
         """
         def __init__(self):
             super().__init__('game_voice')
-            self.client = OpenAI(api_key="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")
+            self.client = OpenAI(api_key=APIKEY)
             self.talking = threading.Lock() # only allow one action client to have control
             self.listening = threading.Lock() # same with listening
             self.logging = True
