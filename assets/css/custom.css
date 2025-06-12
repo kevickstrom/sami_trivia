@@ -1,0 +1,20 @@
+/* Light mode defaults are untouched */
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #121212;
+    color: #e0e0e0;
+  }
+
+  a {
+    color: #90caf9;
+  }
+
+  header, footer {
+    background-color: #1e1e1e;
+  }
+
+  code {
+    background-color: #2e2e2e;
+  }
+}
