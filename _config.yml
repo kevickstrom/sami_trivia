@@ -1,11 +1,7 @@
-theme: minima
-markdown: kramdown
-
-# Add this part:
+# Remove 'theme: minima' if present
+remote_theme: jekyll/minima
 plugins:
-  - jekyll-include-cache
+  - jekyll-remote-theme
 
 minima:
-  skin: auto
-  include_css:
-    - /assets/css/custom.css
+  skin: dark   # or 'dark' if you want dark only
